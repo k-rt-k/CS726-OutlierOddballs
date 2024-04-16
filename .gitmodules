@@ -1,3 +1,9 @@
 [submodule "ODNL"]
 	path = ODNL
 	url = https://github.com/hongxin001/ODNL.git
+[submodule "ODNL/datasets/data/cifar5m"]
+	path = ODNL/datasets/data/cifar5m
+	url = https://github.com/preetum/cifar5m.git
+[submodule "ODNL/datasets/data/outlier-exposure"]
+	path = ODNL/datasets/data/outlier-exposure
+	url = https://github.com/hendrycks/outlier-exposure.git
