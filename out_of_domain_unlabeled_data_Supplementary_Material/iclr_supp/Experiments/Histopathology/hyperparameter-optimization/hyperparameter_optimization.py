@@ -45,7 +45,7 @@ args = argParser.parse_args()
 ##        Replace your wandb token below      ##
 ################################################
 ################################################
-wandb.login(key="<your-token>")
+wandb.login(key=)
 ################################################
 ################################################
 
@@ -80,7 +80,7 @@ class EmbeddingDataset_ul(Dataset):
 
 
 class myFC(nn.Module):
-    def __init__(self, input_dim=1024, hidden_dim=[2048, 2048], class_num=2):
+    def __init__(self, input_dim=2048, hidden_dim=[2048, 2048], class_num=2):
         super(myFC, self).__init__()
         self.fc1 = torch.nn.Sequential(
             nn.Linear(input_dim, hidden_dim[0]),
@@ -105,8 +105,8 @@ def read_data(pklfile_path, binaryClass=True, dataset_type="CRC"):
     mylog(f"Loading data from {pklfile_path}")
     with open(pklfile_path, 'rb') as f:
         data = pickle.load(f)
-    if binaryClass and dataset_type=="CRC":
-        data['labels'] = ['TUM' if x == 'TUM' or x == 'STR' else 'NORM' for x in data['labels']]
+    # if binaryClass and dataset_type=="CRC":
+    #     data['labels'] = ['TUM' if x == 'TUM' or x == 'STR' else 'NORM' for x in data['labels']]
     return data['embeddings'], data['labels']
 
 
@@ -316,7 +316,7 @@ def testing(model, dataloaders, device):
 def run_model(config=None):
     global ex_num, total_ex_num, hp_num, proj_name, tags
     
-    with wandb.init(entity='<your-entity-name>', project=proj_name, name=f"{hp_num}_{ex_num}", 
+    with wandb.init(entity='kartikn_', project=proj_name, name=f"{hp_num}_{ex_num}", 
                     config=config, tags=tags):
         config_wandb = wandb.config
         myconfig = {
@@ -353,14 +353,14 @@ def run_model(config=None):
             binaryClass=False
         
         # read labeled data
-        X_data, y = read_data(myconfig['input_path'], binaryClass=binaryClass, dataset_type="CRC")
+        X_data, y = read_data(myconfig['input_path'], binaryClass=False)
         mylog(f"Data loaded (size:{len(X_data)})")
-        X_data_test, y_data_test = read_data(myconfig['input_test_path'], binaryClass=binaryClass, dataset_type="CRC")
+        X_data_test, y_data_test = read_data(myconfig['input_test_path'], binaryClass=False)
         mylog(f"Test Data loaded (size:{len(X_data_test)})")
         # read unlabeled data
         X_data_ul, y_ul = [], []
         if not myconfig['same_dist_ul']:
-            X_data_ul, y_ul = read_data(myconfig['input_path_ul'], dataset_type="PatchCamelyon")
+            X_data_ul, y_ul = read_data(myconfig['input_path_ul'], dataset_type="CIFAR5M")
             mylog(f"Data loaded (size:{len(X_data_ul)})")
 
         # spliting
@@ -373,9 +373,9 @@ def run_model(config=None):
         mylog(f"First part of train test spliting")
 
         # equal_sampling and downsampleing
-        if not myconfig['same_dist_ul']:
-            X_train, y_train = equal_sampling(X_train, y_train)
-            mylog(f"Equal sampling done")
+        # if not myconfig['same_dist_ul']:
+        #     X_train, y_train = equal_sampling(X_train, y_train)
+        #     mylog(f"Equal sampling done")
         other_train_x, X_train, other_train_y, y_train = train_test_split(X_train, y_train, test_size=myconfig['labeled_number'], shuffle=True, random_state=42, stratify=y_train)
         mylog(f"Secound part of train spliting")
 
@@ -405,9 +405,9 @@ def run_model(config=None):
         
         model = None
         if myconfig['same_dist_ul']:
-            model = myFC(class_num=9)
+            model = myFC(class_num=10)
         else:
-            model = myFC(class_num=2)
+            model = myFC(class_num=10)
         if myconfig['load_pretrained']:
             model.load_state_dict(torch.load(myconfig['model_path']))
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -488,7 +488,7 @@ def main(input_path, input_path_ul, input_path_test, output_path, model_path,
         'step': {'value': 10},
         'labeled_number': {'value': labeled_number},
         'unlabeled_number': {'value': unlabeled_number},
-        'epoch_num': {'value': 10},
+        'epoch_num': {'value': 50},
         'input_path': {'value': input_path},
         'input_path_ul': {'value': input_path_ul},
         'input_test_path': {'value': input_path_test},
@@ -505,9 +505,10 @@ def main(input_path, input_path_ul, input_path_test, output_path, model_path,
 
 
 ex_num = 0
-total_ex_num = 100
-hp_num = f"L{args.labeled_number}_UL{args.unlabeled_number}"
-proj_name = "ssdrl-testing-final"
+total_ex_num = 200
+import time
+hp_num = f"L{args.labeled_number}_UL{args.unlabeled_number}_{time.time()}"
+proj_name = "ssdrl-"+hp_num
 tags = [f"L{args.labeled_number}", f"UL{args.unlabeled_number}"]
 
 

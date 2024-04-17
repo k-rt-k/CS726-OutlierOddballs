@@ -8,11 +8,11 @@ import copy
 import numpy as np
 
 
-def read_data(pklfile_path, binaryClass=True, dataset_type="CRC"):
+def read_data(pklfile_path, binaryClass=False, dataset_type="CRC"):
     with open(pklfile_path, 'rb') as f:
         data = pickle.load(f)
-    if binaryClass and dataset_type=="CRC":
-        data['labels'] = ['TUM' if x == 'TUM' or x == 'STR' else 'NORM' for x in data['labels']]
+    # if binaryClass and dataset_type=="CRC":
+    #     data['labels'] = ['TUM' if x == 'TUM' or x == 'STR' else 'NORM' for x in data['labels']]
     return data['embeddings'], data['labels']
 
 

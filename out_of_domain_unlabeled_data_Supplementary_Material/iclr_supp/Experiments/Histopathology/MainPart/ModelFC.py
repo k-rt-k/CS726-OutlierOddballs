@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class myFC(nn.Module):
-    def __init__(self, input_dim=1024, hidden_dim=[2048, 2048], class_num=2):
+    def __init__(self, input_dim=2048, hidden_dim=[2048, 2048], class_num=2):
         super(myFC, self).__init__()
         self.fc1 = torch.nn.Sequential(
             nn.Linear(input_dim, hidden_dim[0]),

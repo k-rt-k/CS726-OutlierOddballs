@@ -21,6 +21,7 @@ argParser.add_argument("-c", "--current_dir", help="Current directory")
 argParser.add_argument("-o", "--output", help="Output directory")
 argParser.add_argument("-n", "--hpnum", help="Hyper parameter optimization experiment number")
 argParser.add_argument("-l", "--labeled_number", help="labeled number")
+argParser.add_argument("-u", "--unlabeled_number", help="unlabeled number")
 argParser.add_argument("-m", "--model_path", help="Best model path")
 argParser.add_argument("-f", "--load_pretrained", help="Load pretrained or not?")
 argParser.add_argument("-s", "--use_scheduler", help="use scheduler or not?")
@@ -40,14 +41,14 @@ def run_model(config=None):
         binaryClass=False
     
     # read labeled data
-    X_data, y = Utils.read_data(config['input_path'], binaryClass=binaryClass, dataset_type="CRC")
+    X_data, y = Utils.read_data(config['input_path'], binaryClass=False)
     mylog(f"Data loaded (size:{len(X_data)})")
-    X_data_test, y_data_test = Utils.read_data(config['input_test_path'], binaryClass=binaryClass, dataset_type="CRC")
+    X_data_test, y_data_test = Utils.read_data(config['input_test_path'], binaryClass=False)
     mylog(f"Test Data loaded (size:{len(X_data_test)})")
     # read unlabeled data
     X_data_ul, y_ul = [], []
     if not config['same_dist_ul']:
-        X_data_ul, y_ul = Utils.read_data(config['input_path_ul'], dataset_type="PatchCamelyon")
+        X_data_ul, y_ul = Utils.read_data(config['input_path_ul'], dataset_type="CIFAR100")
         mylog(f"Data loaded (size:{len(X_data_ul)})")
 
     # spliting
@@ -59,10 +60,10 @@ def run_model(config=None):
                                             stratify=y_val)
     mylog(f"First part of train test spliting")
 
-    # equal_sampling and downsampleing
-    if not config['same_dist_ul']:
-        X_train, y_train = Utils.equal_sampling(X_train, y_train)
-        mylog(f"Equal sampling done")
+    # # equal_sampling and downsampleing
+    # if not config['same_dist_ul']:
+    #     X_train, y_train = Utils.equal_sampling(X_train, y_train)
+    #     mylog(f"Equal sampling done")
     other_train_x, X_train, other_train_y, y_train = train_test_split(X_train, y_train, test_size=config['labeled_number'], shuffle=True, random_state=42, stratify=y_train)
     mylog(f"Secound part of train spliting")
 
@@ -91,9 +92,9 @@ def run_model(config=None):
     
     model = None
     if config['same_dist_ul']:
-        model = ModelFC.myFC(class_num=9)
+        model = ModelFC.myFC(class_num=10)
     else:
-        model = ModelFC.myFC(class_num=2)
+        model = ModelFC.myFC(class_num=10)
     if config['load_pretrained']:
         model.load_state_dict(torch.load(config['model_path']))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -150,12 +151,12 @@ def main(input_path, input_path_ul, input_path_test, output_path, model_path,
         'weight_decay': 0.001,
         'lamb': 0.001,
         'alpha': 0.001,
-        'gamma_l': 0.001,
-        'gamma_ul': 0.001,
+        'gamma_l': 0.00001,
+        'gamma_ul': 0.00001,
         'step': 10,
         'labeled_number': labeled_number,
         'unlabeled_number': unlabeled_number,
-        'epoch_num': 10,
+        'epoch_num': 50,
         'input_path': input_path,
         'input_path_ul': input_path_ul,
         'input_test_path': input_path_test,
@@ -168,8 +169,8 @@ def main(input_path, input_path_ul, input_path_test, output_path, model_path,
     }
     run_model(config)
 
-
-hp_num = f"L{args.labeled_number}_UL{args.unlabeled_number}"
+import time
+hp_num = f"L{args.labeled_number}_UL{args.unlabeled_number}_{time.time()}"
 
 
 if __name__ == "__main__":
