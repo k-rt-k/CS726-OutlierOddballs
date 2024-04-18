@@ -18,16 +18,48 @@ eval_transforms = transforms.Compose([
     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
 ])
 
+class CIFAR5m(datasets.VisionDataset):
+    def __init__(self, root, loader, extensions, transform=None, target_transform=None):
+        super(CIFAR5m, self).__init__(root, transform=transform, target_transform=target_transform)
+
+        self.loader = loader
+        self.extensions = extensions
+
+        self.imgs,self.labels = self._load_data(root)
+
+    def _load_data(self, root):
+        imgs = []
+        labels = []
+        for root, _, fnames in sorted(os.walk(root)):
+            for fname in sorted(fnames):
+                path = os.path.join(root, fname)
+                sample = self.loader(path)
+                imgs.append(sample['X'])
+                labels.append(sample['Y'])
+                
+        return np.vstack(imgs), np.concatenate(labels)
+
+    def __getitem__(self, index):
+        image = self.imgs[index]
+        label = self.labels[index]
+        return np.swapaxes(image,0,2), label
+
+    def __len__(self):
+        return len(self.labels)
+
+    def extra_repr(self):
+        return "Split: {}".format("Train" if self.train else "Test")
+
 def main(data_path, output_path, args):
     # Load CIFAR-5m dataset
     dataroot = data_path # Change this path
     print(f"[My-Log][dataroot]{dataroot}")
 
-    dataset = datasets.DatasetFolder(
+    dataset = CIFAR5m(
         root=dataroot,
         loader=np.load,
-        extensions=('.npz'),
-        transform=eval_transforms
+        extensions='.npz',
+        transform=eval_transforms,
     )
     dataloader = DataLoader(
         dataset,
@@ -72,4 +104,5 @@ if __name__ == "__main__":
     output_path = args.output_path
 
     os.makedirs(output_path, exist_ok=True)
+    
     main(data_path, output_path, args)
