@@ -1,11 +1,11 @@
-CUDA_VISIBLE_DEVICES=1 python3 hyperparameter_optimization.py --train /users/ug21/atharvatambat/AML-project/CS726-OutlierOddballs/out_of_domain_unlabeled_data_Supplementary_Material/iclr_supp/Experiments/Histopathology/embeddings/cifar10_train_embeddings.pkl \
---train_unlabeled /users/ug21/atharvatambat/AML-project/CS726-OutlierOddballs/out_of_domain_unlabeled_data_Supplementary_Material/iclr_supp/Experiments/Histopathology/embeddings/cifar5m_train_embeddings.pkl \
---test /users/ug21/atharvatambat/AML-project/CS726-OutlierOddballs/out_of_domain_unlabeled_data_Supplementary_Material/iclr_supp/Experiments/Histopathology/embeddings/cifar10_test_embeddings.pkl \
---output /users/ug21/atharvatambat/AML-project/CS726-OutlierOddballs/out_of_domain_unlabeled_data_Supplementary_Material/iclr_supp/Experiments/Histopathology/results/ \
+CUDA_VISIBLE_DEVICES=1 python3 hyperparameter_optimization.py --train /users/ug21/atharvatambat/AML-project/CS726-OutlierOddballs/out_of_domain_unlabeled_data_Supplementary_Material/iclr_supp/Experiments/Histopathology/embeddings/mnist_train_embeddings.pkl \
+--train_unlabeled /users/ug21/atharvatambat/AML-project/CS726-OutlierOddballs/out_of_domain_unlabeled_data_Supplementary_Material/iclr_supp/Experiments/Histopathology/embeddings/svhn_train_embeddings.pkl \
+--test /users/ug21/atharvatambat/AML-project/CS726-OutlierOddballs/out_of_domain_unlabeled_data_Supplementary_Material/iclr_supp/Experiments/Histopathology/embeddings/mnist_test_embeddings.pkl \
+--output /users/ug21/atharvatambat/AML-project/CS726-OutlierOddballs/out_of_domain_unlabeled_data_Supplementary_Material/iclr_supp/Experiments/Histopathology/mnist_results/ \
 --current_dir "$PWD" \
 --hpnum 1 \
---labeled_number 1000 \
---unlabeled_number 100000 \
+--labeled_number 100 \
+--unlabeled_number 72000 \
 --use_scheduler True \
 --use_weighted_loss False \
 --same_dist_ul False

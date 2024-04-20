@@ -14,60 +14,18 @@ model.fc = torch.nn.Identity()  # Remove the final fully connected layer
 
 # Data transformation for evaluation
 eval_transforms = transforms.Compose([
+    transforms.Resize((224, 224)),  # Resize images to match ResNet input size
     transforms.ToTensor(),
     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
 ])
 
-class CIFAR5m(datasets.VisionDataset):
-    def __init__(self, root, loader, extensions, transform=None, target_transform=None):
-        super(CIFAR5m, self).__init__(root, transform=transform, target_transform=target_transform)
-
-        self.loader = loader
-        self.extensions = extensions
-        self.transform = transform
-        self.imgs,self.labels = self._load_data(root)
-
-    def _load_data(self, root):
-        imgs = []
-        labels = []
-        for root, _, fnames in sorted(os.walk(root)):
-            for fname in sorted(fnames):
-                path = os.path.join(root, fname)
-                sample = self.loader(path)
-                imgs.append(sample['X'])
-                labels.append(sample['Y'])
-                
-        return np.vstack(imgs), np.concatenate(labels)
-
-    def __getitem__(self, index):
-        # image = np.swapaxes(self.imgs[index],0,2)
-        image = self.imgs[index]
-        image = self.transform(image)
-        label = self.labels[index]
-        return image, label
-
-    def __len__(self):
-        return len(self.labels)
-
-    def extra_repr(self):
-        return "Split: {}".format("Train" if self.train else "Test")
-
 def main(data_path, output_path, args):
-    # Load CIFAR-5m dataset
-    dataroot = data_path # Change this path
+    # Load SVHN dataset
+    dataroot = data_path  # Change this path
     print(f"[My-Log][dataroot]{dataroot}")
 
-    dataset = CIFAR5m(
-        root=dataroot,
-        loader=np.load,
-        extensions='.npz',
-        transform=eval_transforms,
-    )
-    dataloader = DataLoader(
-        dataset,
-        batch_size=512,
-        shuffle=False,
-    )
+    dataset = datasets.SVHN(root=dataroot, split='train' if not args.test else 'test', download=True, transform=eval_transforms)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
     embeddings, labels = [], []
 
@@ -84,11 +42,11 @@ def main(data_path, output_path, args):
             labels.append(targets.numpy())
 
     embeddings = np.vstack(embeddings)
-    labels = np.concatenate(labels).squeeze()
+    labels = np.vstack(labels).squeeze()
 
     data = {'embeddings': embeddings, 'labels': labels}
 
-    data_path = os.path.join(output_path, "cifar5m_{}_embeddings.pkl".format("train" if not args.test else "test"))
+    data_path = os.path.join(output_path, "svhn_{}_embeddings.pkl".format("train" if not args.test else "test"))
     with open(data_path, 'wb') as handle:
         pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -99,12 +57,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Embeddings generator')
     parser.add_argument('--data_path', type=str, help='The path of the data whose embeddings are to be generated')
     parser.add_argument('--output_path', type=str, default='./embeddings/', help='Path of the folder where .pkl files of embeddings are to be saved')
-    parser.add_argument('--test', action='store_true', help='True for embedddings of test set, False for embeddings of train set')
+    parser.add_argument('--test', action='store_true', help='True for embeddings of test set, False for embeddings of train set')
     args = parser.parse_args()
 
     data_path = args.data_path
     output_path = args.output_path
 
     os.makedirs(output_path, exist_ok=True)
-    
     main(data_path, output_path, args)

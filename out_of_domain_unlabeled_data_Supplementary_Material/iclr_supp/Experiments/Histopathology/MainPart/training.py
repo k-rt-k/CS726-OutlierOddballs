@@ -77,6 +77,9 @@ def run_model(config=None):
             else:
                 _, X_data_ul, _, _ = train_test_split(other_train_x, other_train_y, test_size=config['unlabeled_number'], shuffle=True, random_state=42, stratify=other_train_y)
         else:
+            mylog(config['unlabeled_number'])
+            mylog(X_data_ul.shape)
+            mylog(y_ul.shape)
             _, X_data_ul, _, _ = train_test_split(X_data_ul, y_ul, test_size=config['unlabeled_number'], shuffle=True, random_state=42, stratify=y_ul)
 
     mylog(f"Downsample Labeled (Train):(size:{len(X_train)}), Unlabeled (Train):(size:{len(X_data_ul)})")
@@ -151,8 +154,8 @@ def main(input_path, input_path_ul, input_path_test, output_path, model_path,
         'weight_decay': 0.001,
         'lamb': 0.001,
         'alpha': 0.001,
-        'gamma_l': 0.00001,
-        'gamma_ul': 0.00001,
+        'gamma_l': 0.001,
+        'gamma_ul': 0.001,
         'step': 10,
         'labeled_number': labeled_number,
         'unlabeled_number': unlabeled_number,
