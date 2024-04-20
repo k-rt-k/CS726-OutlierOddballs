@@ -23,6 +23,7 @@ from tqdm import tqdm
 from sklearn.metrics import f1_score, accuracy_score
 import wandb
 import argparse
+import functools
 
 argParser = argparse.ArgumentParser()
 argParser.add_argument("-t", "--train", help="Train data")
@@ -38,6 +39,7 @@ argParser.add_argument("-f", "--load_pretrained", help="Load pretrained or not?"
 argParser.add_argument("-s", "--use_scheduler", help="use scheduler or not?")
 argParser.add_argument("-w", "--use_weighted_loss", help="use weighted_loss or not?")
 argParser.add_argument("-a", "--same_dist_ul", help="same distribution for unlabeled data or not?")
+argParser.add_argument("-x","--num_classes", help="Number of classes")
 args = argParser.parse_args()
 
 ################################################
@@ -45,7 +47,7 @@ args = argParser.parse_args()
 ##        Replace your wandb token below      ##
 ################################################
 ################################################
-wandb.login(key=)
+wandb.login(key=os.getenv("WANDB_API_KEY"))
 ################################################
 ################################################
 
@@ -101,7 +103,7 @@ class myFC(nn.Module):
         return x
 
 
-def read_data(pklfile_path, binaryClass=True, dataset_type="CRC"):
+def read_data(pklfile_path, binaryClass=True, dataset_type="CRC",num_classes=10):
     mylog(f"Loading data from {pklfile_path}")
     with open(pklfile_path, 'rb') as f:
         data = pickle.load(f)
@@ -109,7 +111,10 @@ def read_data(pklfile_path, binaryClass=True, dataset_type="CRC"):
     #     data['labels'] = ['TUM' if x == 'TUM' or x == 'STR' else 'NORM' for x in data['labels']]
     # if binaryClass and dataset_type=="CRC":
     #     data['labels'] = ['TUM' if x == 'TUM' or x == 'STR' else 'NORM' for x in data['labels']]
-    return data['embeddings'], data['labels']
+    X,y = data['embeddings'], data['labels']
+    min = np.min(y)
+    ind = y<(num_classes+min)
+    return X[ind], y[ind]
 
 
 def equal_sampling(X_data_org, Y_data_org):
@@ -315,7 +320,7 @@ def testing(model, dataloaders, device):
     return y_pred, y_true
 
 
-def run_model(config=None):
+def run_model(config=None,num_classes=10):
     global ex_num, total_ex_num, hp_num, proj_name, tags
     
     with wandb.init(entity='kartikn_', project=proj_name, name=f"{hp_num}_{ex_num}", 
@@ -356,16 +361,16 @@ def run_model(config=None):
             binaryClass=False
         
         # read labeled data
-        X_data, y = read_data(myconfig['input_path'], binaryClass=False)
-        X_data, y = read_data(myconfig['input_path'], binaryClass=False)
+        X_data, y = read_data(myconfig['input_path'], binaryClass=False,num_classes=num_classes)
+        X_data, y = read_data(myconfig['input_path'], binaryClass=False,num_classes=num_classes)
         mylog(f"Data loaded (size:{len(X_data)})")
-        X_data_test, y_data_test = read_data(myconfig['input_test_path'], binaryClass=False)
-        X_data_test, y_data_test = read_data(myconfig['input_test_path'], binaryClass=False)
+        X_data_test, y_data_test = read_data(myconfig['input_test_path'], binaryClass=False,num_classes=num_classes)
+        X_data_test, y_data_test = read_data(myconfig['input_test_path'], binaryClass=False,num_classes=num_classes)
         mylog(f"Test Data loaded (size:{len(X_data_test)})")
         # read unlabeled data
         X_data_ul, y_ul = [], []
         if not myconfig['same_dist_ul']:
-            X_data_ul, y_ul = read_data(myconfig['input_path_ul'], dataset_type="CIFAR100")
+            X_data_ul, y_ul = read_data(myconfig['input_path_ul'], dataset_type="CIFAR100",num_classes=num_classes)
             mylog(f"Data loaded (size:{len(X_data_ul)})")
 
         # spliting
@@ -413,11 +418,11 @@ def run_model(config=None):
         
         model = None
         if myconfig['same_dist_ul']:
-            model = myFC(class_num=10)
-            model = myFC(class_num=10)
+            model = myFC(class_num=num_classes)
+            model = myFC(class_num=num_classes)
         else:
-            model = myFC(class_num=10)
-            model = myFC(class_num=10)
+            model = myFC(class_num=num_classes)
+            model = myFC(class_num=num_classes)
         if myconfig['load_pretrained']:
             model.load_state_dict(torch.load(myconfig['model_path']))
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -477,7 +482,7 @@ def run_model(config=None):
 
 def main(input_path, input_path_ul, input_path_test, output_path, model_path, 
          labeled_number=1000, unlabeled_number=1000, load_pretrained=True, 
-         use_weighted_loss=False, use_scheduler=False, same_dist_ul=True):
+         use_weighted_loss=False, use_scheduler=False, same_dist_ul=True,num_classes=10):
     global ex_num, total_ex_num, proj_name
     print("Main method running ...")
     
@@ -512,13 +517,14 @@ def main(input_path, input_path_ul, input_path_test, output_path, model_path,
     }
     sweep_config['parameters'] = hyper_parameters
     sweep_id = wandb.sweep(sweep_config, project=proj_name)
-    wandb.agent(sweep_id, run_model, count=total_ex_num)
+    run_model_ = functools.partial(run_model,num_classes=num_classes)
+    wandb.agent(sweep_id, run_model_, count=total_ex_num)
 
 
 ex_num = 0
 total_ex_num = 50
 import time
-hp_num = f"L{args.labeled_number}_UL{args.unlabeled_number}_{time.time()}"
+hp_num = f"L{args.labeled_number}_UL{args.unlabeled_number}_{args.num_classes}_{time.time()}"
 proj_name = "ssdrl-"+hp_num
 total_ex_num = 50
 import time
@@ -568,5 +574,6 @@ if __name__ == "__main__":
          load_pretrained=load_pretrained,
          use_weighted_loss=use_weighted_loss,
          use_scheduler=use_scheduler,
-         same_dist_ul=same_dist_ul
+         same_dist_ul=same_dist_ul,
+         num_classes=int(args.num_classes)
     )

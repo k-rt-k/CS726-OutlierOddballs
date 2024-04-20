@@ -8,4 +8,5 @@ CUDA_VISIBLE_DEVICES=1 python3 hyperparameter_optimization.py --train /users/ug2
 --unlabeled_number 72000 \
 --use_scheduler True \
 --use_weighted_loss False \
---same_dist_ul False
+--same_dist_ul False\
+--num_classes 2
