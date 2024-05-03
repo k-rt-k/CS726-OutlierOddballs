@@ -38,6 +38,9 @@ argParser.add_argument("-f", "--load_pretrained", help="Load pretrained or not?"
 argParser.add_argument("-s", "--use_scheduler", help="use scheduler or not?")
 argParser.add_argument("-w", "--use_weighted_loss", help="use weighted_loss or not?")
 argParser.add_argument("-a", "--same_dist_ul", help="same distribution for unlabeled data or not?")
+argParser.add_argument("-b", "--frac_random_labelled", help="What fraction of unlabelled dataset has to be randomly labelled?")
+argParser.add_argument("-nu", "--num_classes", help="No. of classes")
+argParser.add_argument("-da", "--dataset", help="Dataset used")
 args = argParser.parse_args()
 
 ################################################
@@ -45,7 +48,7 @@ args = argParser.parse_args()
 ##        Replace your wandb token below      ##
 ################################################
 ################################################
-wandb.login(key=)
+# wandb.login(key=)
 ################################################
 ################################################
 
@@ -204,8 +207,21 @@ def train_model(model, dataloaders_labeled, dataloaders_unlabeled, dataset_sizes
                             cost = torch.sum(torch.norm((x_adv-x_l_org), dim=1)**2)
                             phi = (loss - config['gamma_l'] * cost)/len(x_l_org)
                             _, preds = torch.max(pred, 1)
-                        
-                            # unlabeled
+
+                            ### Split the unlabelled set randomly into two sets - one which is going to be pseudo labelled - one which is going to be randomly labelled
+                            x_ul_org , x_ul_random_label = train_test_split(x_ul_org, test_size=float(config['frac_random_labelled']), random_state=42)
+                            
+                            # Random labels 
+                            pred_org = model(x_ul_random_label)
+                            x_adv = optimize_x_adv(model=model, x_org=x_ul_random_label, y=pred_org, 
+                                                step=config['step'], alpha=config['alpha'], 
+                                                gamma=config['gamma_ul_random_label'], criterion=criterion)
+                            pred = model(x_adv)
+                            loss = criterion(pred, pred_org)
+                            cost = torch.sum(torch.norm((x_adv-x_ul_random_label), dim=1)**2)
+                            phi_ul_random_label = (loss - config['gamma_ul_random_label'] * cost)/len(x_ul_random_label)
+
+                            # unlabeled - pseudo labels
                             pred_org = model(x_ul_org)
                             x_adv = optimize_x_adv(model=model, x_org=x_ul_org, y=pred_org, 
                                                 step=config['step'], alpha=config['alpha'], 
@@ -213,9 +229,9 @@ def train_model(model, dataloaders_labeled, dataloaders_unlabeled, dataset_sizes
                             pred = model(x_adv)
                             loss = criterion(pred, pred_org)
                             cost = torch.sum(torch.norm((x_adv-x_ul_org), dim=1)**2)
-                            phi_ul = (loss - config['gamma_ul'] * cost)/len(x_ul_org)
+                            phi_ul = (loss - config['gamma_ul'] * cost)/len(x_ul_org) 
 
-                            loss = (phi + config['lamb']*phi_ul)*100
+                            loss = (phi + config['lamb']*phi_ul + config['lamb2']*phi_ul_random_label)*100
 
                             loss.backward()
                             optimizer.step()
@@ -334,7 +350,9 @@ def run_model(config=None):
             'output_path': config_wandb.output_path,
             'gamma_l': config_wandb.gamma_l,
             'gamma_ul': config_wandb.gamma_ul,
+            'gamma_ul_random_label': config_wandb.gamma_ul_random_label,
             'lamb': config_wandb.lamb,
+            'lamb2': config_wandb.lamb2,
             'alpha': config_wandb.alpha,
             'step': config_wandb.step,
             'labeled_number': config_wandb.labeled_number,
@@ -342,7 +360,9 @@ def run_model(config=None):
             'load_pretrained': config_wandb.load_pretrained,
             'weighted_loss': config_wandb.weighted_loss,
             'scheduler': config_wandb.scheduler,
-            'same_dist_ul': config_wandb.same_dist_ul
+            'same_dist_ul': config_wandb.same_dist_ul,
+            'frac_random_labelled': config_wandb.frac_random_labelled,
+            'num_classes': int(args.num_classes)
         }
 
         print("="*10)
@@ -413,14 +433,14 @@ def run_model(config=None):
         
         model = None
         if myconfig['same_dist_ul']:
-            model = myFC(class_num=10)
-            model = myFC(class_num=10)
+            model = myFC(class_num=myconfig['num_classes'])
+            model = myFC(class_num=myconfig['num_classes'])
         else:
-            model = myFC(class_num=10)
-            model = myFC(class_num=10)
+            model = myFC(class_num=myconfig['num_classes'])
+            model = myFC(class_num=myconfig['num_classes'])
         if myconfig['load_pretrained']:
             model.load_state_dict(torch.load(myconfig['model_path']))
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model.to(device)
         mylog(f"ML model defined (device: {device})")
 
@@ -477,7 +497,8 @@ def run_model(config=None):
 
 def main(input_path, input_path_ul, input_path_test, output_path, model_path, 
          labeled_number=1000, unlabeled_number=1000, load_pretrained=True, 
-         use_weighted_loss=False, use_scheduler=False, same_dist_ul=True):
+         use_weighted_loss=False, use_scheduler=False, same_dist_ul=True, frac_random_labelled=0,
+         num_classes=10):
     global ex_num, total_ex_num, proj_name
     print("Main method running ...")
     
@@ -492,9 +513,11 @@ def main(input_path, input_path_ul, input_path_test, output_path, model_path,
         'lr': { 'values': [float(f"1e-{i}") for i in range(1,5)]},
         'weight_decay': { 'values': [float(f"1e-{i}") for i in range(2,7)]},
         'lamb': { 'values': [100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001]},
+        'lamb2': { 'values': [100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001]},
         'alpha': { 'values': [10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001]},
         'gamma_l': { 'values': [100, 10, 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]},
         'gamma_ul': { 'values': [100, 10, 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]},
+        'gamma_ul_random_label': { 'values': [100, 10, 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]},
         'step': {'value': 10},
         'labeled_number': {'value': labeled_number},
         'unlabeled_number': {'value': unlabeled_number},
@@ -508,7 +531,9 @@ def main(input_path, input_path_ul, input_path_test, output_path, model_path,
         'load_pretrained': {'value': load_pretrained},
         'weighted_loss': {'value': use_weighted_loss},
         'scheduler': {'value': use_scheduler},
-        'same_dist_ul': {'value': same_dist_ul}
+        'same_dist_ul': {'value': same_dist_ul},
+        'frac_random_labelled':{'value':frac_random_labelled},
+        'num_classes':{'value':num_classes}
     }
     sweep_config['parameters'] = hyper_parameters
     sweep_id = wandb.sweep(sweep_config, project=proj_name)
@@ -518,12 +543,10 @@ def main(input_path, input_path_ul, input_path_test, output_path, model_path,
 ex_num = 0
 total_ex_num = 50
 import time
-hp_num = f"L{args.labeled_number}_UL{args.unlabeled_number}_{time.time()}"
+hp_num = f"{args.dataset}-L{args.labeled_number}_UL{args.unlabeled_number}_RL{args.frac_random_labelled}_{time.time()}"
 proj_name = "ssdrl-"+hp_num
 total_ex_num = 50
-import time
-hp_num = f"L{args.labeled_number}_UL{args.unlabeled_number}_{time.time()}"
-proj_name = "ssdrl-"+hp_num
+
 tags = [f"L{args.labeled_number}", f"UL{args.unlabeled_number}"]
 
 
@@ -556,6 +579,8 @@ if __name__ == "__main__":
     mylog(f"[args] use_scheduler: {use_scheduler}")
     mylog(f"[args] use_weighted_loss: {use_weighted_loss}")
     mylog(f"[args] same_dist_ul: {same_dist_ul}")
+    mylog(f"[args] randomly labelled fraction: {args.frac_random_labelled}")
+    mylog(f"[args] no. of classes: {args.num_classes}")
     os.chdir(f"{args.current_dir}")
 
     main(input_path=args.train, 
@@ -568,5 +593,7 @@ if __name__ == "__main__":
          load_pretrained=load_pretrained,
          use_weighted_loss=use_weighted_loss,
          use_scheduler=use_scheduler,
-         same_dist_ul=same_dist_ul
+         same_dist_ul=same_dist_ul,
+         frac_random_labelled=args.frac_random_labelled,
+         num_classes=int(args.num_classes)
     )
