@@ -48,7 +48,7 @@ args = argParser.parse_args()
 ##        Replace your wandb token below      ##
 ################################################
 ################################################
-# wandb.login(key=)
+wandb.login(key="ff6987b1b5bb9e8293420ff97393ef4780ae55a6")
 ################################################
 ################################################
 
@@ -212,7 +212,7 @@ def train_model(model, dataloaders_labeled, dataloaders_unlabeled, dataset_sizes
                             x_ul_org , x_ul_random_label = train_test_split(x_ul_org, test_size=float(config['frac_random_labelled']), random_state=42)
                             
                             # Random labels 
-                            pred_org = model(x_ul_random_label)
+                            pred_org = torch.randint(0, config['num_classes'], size=(x_ul_random_label.shape[0],)).to(device)
                             x_adv = optimize_x_adv(model=model, x_org=x_ul_random_label, y=pred_org, 
                                                 step=config['step'], alpha=config['alpha'], 
                                                 gamma=config['gamma_ul_random_label'], criterion=criterion)
